@@ -14,6 +14,8 @@ const int ledRPin = 6;
 const int ledGPin = 3;
 const int ledBPin = 4;
 
+IntervalTimer mirrorTimer;
+
 void setup() {
   // status LED
   pinMode(ledPin, OUTPUT);
@@ -28,13 +30,18 @@ void setup() {
   pinMode(pwmAPin, OUTPUT);
   pinMode(pwmBPin, OUTPUT);
 
-  // active low
-  pinMode(pwmMirror, OUTPUT);
-  //analogWrite(pwmAPin, 100);
+  // 150000 = 0.15s
+  //  10000 = 0.01s
+  //   1000 = .001s
+  mirrorTimer.begin(handleMirrorPwm, 100);
 }
+
+static volatile uint8_t mirrorPwmOC;
 
 void loop() {
   digitalWrite(ledPin, LOW);
+
+  mirrorPwmOC = 30;
   
   // rotate in one way
   // dir
@@ -46,8 +53,11 @@ void loop() {
   analogWrite(pwmAPin, 255);
   analogWrite(pwmBPin, 64);
   analogWrite(pwmAPin, 1);
+
   delay(1000);
   digitalWrite(ledPin, HIGH);
+
+  mirrorPwmOC = 200;
 
   // rotate the other way
   digitalWrite(phaseAPin, LOW);
@@ -58,4 +68,31 @@ void loop() {
   analogWrite(pwmAPin, 250);
 
   delay(1000);
+
+  /*
+  if(mirrorWasHigh) {
+    // low
+    pinMode(pwmMirror, OUTPUT);
+    digitalWrite(pwmMirror, LOW);
+  }
+  else {
+    // "open drain" hi-z
+    pinMode(pwmMirror, INPUT);
+  }
+  mirrorWasHigh = !mirrorWasHigh;
+  */
+}
+
+#define MIRROR_COUNT_MAX 255
+static volatile uint8_t mirrorCount = 0;
+void handleMirrorPwm(void) {
+  mirrorCount++;
+
+  if(mirrorCount > mirrorPwmOC) {
+    // "open drain" hi-z
+    pinMode(pwmMirror, INPUT);
+  } else {
+    pinMode(pwmMirror, OUTPUT);
+    digitalWrite(pwmMirror, LOW);
+  }
 }

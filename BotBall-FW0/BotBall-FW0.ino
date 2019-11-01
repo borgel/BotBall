@@ -1,21 +1,6 @@
-/*
-#include <Wire.h>
-#include <WireIMXRT.h>
-#include <WireKinetis.h>
-*/
-#include <ComponentObject.h>
-#include <RangeSensor.h>
-#include <SparkFun_VL53L1X.h>
-#include <vl53l1x_class.h>
-#include <vl53l1_error_codes.h>
-
-/*
-#include <Wire.h>
-extern TwoWire Wire1;
-*/
-
 #include "OcPwm.h"
 #include "IntervalTimer.h"
+#include "rotary.h"
 
 // motor driver
 // https://www.pololu.com/product/2135
@@ -33,12 +18,6 @@ const int ledPin = 19;
 const int ledRPin = 6;
 const int ledGPin = 3;
 const int ledBPin = 4;
-
-const int distanceNShutdown = 2;
-const int distanceInt = 1;
-const int distanceSDA = 23;
-const int distanceSCL = 22;
-SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
 void setup() {
   // status LED
@@ -61,54 +40,12 @@ void setup() {
   Serial.println("Booted...");
 
   //ocp_Setup(pwmMirrorPin);
-
-  /*
-  pinMode(distanceNShutdown, OUTPUT);
-  digitalWrite(ledPin, LOW);
-  delay(500);
-  */
-
-  pinMode(distanceInt, INPUT);
-  pinMode(distanceSDA, OUTPUT);
-  pinMode(distanceSCL, OUTPUT);
-
-  /*
-  digitalWrite(distanceSDA, LOW);
-  digitalWrite(distanceSCL, LOW);
-  delay(100);
-  digitalWrite(distanceSDA, HIGH);
-  digitalWrite(distanceSCL, HIGH);
-  */
-  
-  Wire1.begin();
-  Wire1.setSDA(distanceSDA);
-  Wire1.setSCL(distanceSCL);
-
-/*
-  Wire1.beginTransmission(80);
-  Wire1.write(0);  // address high byte
-  Wire1.write(0);  // address low byte
-  Wire1.endTransmission();
-  */
-  
-    Serial.println("done sending");
-    
-  if(distanceSensor.begin() == 0) {
-    Serial.println("sensor OK");
-  }
-  else {
-    Serial.println("Failed to init distance sensor");
-  }
+  rotary_Begin();
+  rotary_Home();
 }
 
 void loop() {
   Serial.print(".");
-  
-  distanceSensor.startRanging(); //Write configuration bytes to initiate measurement
-  int distance = distanceSensor.getDistance(); //Get the result of the measurement from the sensor
-  distanceSensor.stopRanging();
-  Serial.print("Distance(mm): ");
-  Serial.println(distance);
   
   digitalWrite(ledPin, LOW);
 
@@ -139,8 +76,4 @@ void loop() {
   analogWrite(pwmAPin, 250);
 
   delay(1000);
-}
-
-void homeSensor(void) {
-}
 }

@@ -1,4 +1,3 @@
-#include "OcPwm.h"
 #include "IntervalTimer.h"
 #include "rotary.h"
 
@@ -7,7 +6,6 @@
 
 const int pwmAPin = 18;
 const int pwmBPin = 17;
-const int pwmMirrorPin = 16;
 const int phaseAPin = 15;
 const int phaseBPin = 18;
 
@@ -39,41 +37,28 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Booted...");
 
-  //ocp_Setup(pwmMirrorPin);
   rotary_Begin();
+  
+  //digitalWrite(ledPin, LOW);
   rotary_Home();
+  //digitalWrite(ledPin, HIGH);
 }
 
 void loop() {
-  Serial.print(".");
-  
-  digitalWrite(ledPin, LOW);
-
-  ocp_SetDuty(30);
-
-  // rotate in one way
-  // dir
-  digitalWrite(phaseAPin, HIGH);
-  digitalWrite(phaseBPin, LOW);
-
-  //PWM
-  // 8 bits
-  analogWrite(pwmAPin, 255);
-  analogWrite(pwmBPin, 64);
-  analogWrite(pwmAPin, 1);
-
-  delay(1000);
-  digitalWrite(ledPin, HIGH);
-
-  ocp_SetDuty(200);
-
-  // rotate the other way
+  /*
   digitalWrite(phaseAPin, LOW);
   digitalWrite(phaseBPin, HIGH);
 
   analogWrite(pwmAPin, 64);
   analogWrite(pwmBPin, 255);
-  analogWrite(pwmAPin, 250);
+  */
+  
+  //digitalWrite(ledPin, LOW);
 
-  delay(1000);
+  // FIXME rm
+  rotary_Home();
+
+  //digitalWrite(ledPin, HIGH);
+
+  // rotate the other way
 }

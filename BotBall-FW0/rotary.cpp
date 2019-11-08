@@ -1,4 +1,5 @@
 #include "rotary.h"
+#include "OcPwm.h"
 
 #include <ComponentObject.h>
 #include <RangeSensor.h>
@@ -8,11 +9,20 @@
 
 #include <Wire.h>
 
+const int pwmMirrorPin = 16;
+
 // TODO abstract these
 const int distanceNShutdown = 2;
 const int distanceInt = 1;
 const int distanceSDA = 23;
 const int distanceSCL = 22;
+
+// 20 is about 4 revolutions/second
+const int defaultMirrorSpeed = 20;
+
+// below this (or low confidence) we consider the backstop
+const int closeThreshMm = 35;
+const int closeThreshHysteresisMm = 10;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
@@ -27,22 +37,70 @@ void rotary_Begin(void) {
   Wire1.setSDA(distanceSDA);
   Wire1.setSCL(distanceSCL);
   
-  if(distanceSensor.begin() == 0) {
-    Serial.println("sensor OK");
-  }
-  else {
+  if(distanceSensor.begin() != 0) {
     Serial.println("Failed to init distance sensor");
   }
 
+  // let's not pretend
+  distanceSensor.setDistanceModeShort();
   // TODO config window, etc
+  // TODO what is reasonable?
+  // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
+  distanceSensor.setTimingBudgetInMs(15);
+  // >= timing budget
+  distanceSensor.setIntermeasurementPeriod(15);
+  distanceSensor.startRanging();
+
+  // setup mirror motor
+  ocp_Setup(pwmMirrorPin);
+}
+
+int inline getRange(void) {
+  //get measurement
+  // check getRangeStatus, return error if failed (0 success)
+  int const distance = distanceSensor.getDistance();
+  if(distanceSensor.getRangeStatus() != 0) {
+    return -1;
+  }
+  return distance;
 }
 
 void rotary_Home(void) {
+  int distance = 0;
+
+  // start rotating at the normal speed
+  // take take measurements
+  // when measurement drops below close thresh, mark time
+  // mark time when measurement exceeds close thresh
+  // repeat X times to and print stuff
+
+
+  Serial.println("Starting to home...");
+  digitalWrite(19, LOW);
   
+  ocp_SetDuty(defaultMirrorSpeed);
   
-  distanceSensor.startRanging(); //Write configuration bytes to initiate measurement
-  int distance = distanceSensor.getDistance(); //Get the result of the measurement from the sensor
-  distanceSensor.stopRanging();
-  Serial.print("Distance(mm): ");
-  Serial.println(distance);
+  Serial.printf("1=%dmm ", getRange());
+
+  // spin until we start seeing the backstop
+  do {
+    distance = getRange();
+  } while(distance > closeThreshMm + closeThreshHysteresisMm || distance == -1);
+  int const backstopStart = millis();
+
+  Serial.printf("2=%dmm ", distance);
+
+  // make sure we wait until there has been at least one more measurement
+  distanceSensor.checkForDataReady();
+
+  // spin until we stop seeing the backstop
+  do {
+    distance = getRange();
+  } while(distance <= closeThreshMm + closeThreshHysteresisMm || distance == -1);
+  int const backstopStop = millis();
+
+  Serial.printf("3=%dmm ", distance);
+  
+  digitalWrite(19, HIGH);
+  Serial.printf("Saw backstop for %d ms\n", backstopStop - backstopStart);
 }

@@ -24,15 +24,14 @@ const int defaultMirrorSpeed = 20;
 const int closeThreshMm = 35;
 const int closeThreshHysteresisMm = 10;
 
+// TODO IIR?
+uint32_t homedDurationMs = 0;
+
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
 void rotary_Begin(void) {
-  /*
-  pinMode(distanceInt, INPUT);
-  pinMode(distanceSDA, OUTPUT);
-  pinMode(distanceSCL, OUTPUT);
-  */
-
+  homedDurationMs = 0;
+  
   Wire1.begin();
   Wire1.setSDA(distanceSDA);
   Wire1.setSCL(distanceSCL);
@@ -56,9 +55,8 @@ void rotary_Begin(void) {
 }
 
 int inline getRange(void) {
-  //get measurement
-  // check getRangeStatus, return error if failed (0 success)
   int const distance = distanceSensor.getDistance();
+  // check getRangeStatus, return error if failed (0 success)
   if(distanceSensor.getRangeStatus() != 0) {
     return -1;
   }
@@ -66,6 +64,8 @@ int inline getRange(void) {
 }
 
 void rotary_Home(void) {
+  homedDurationMs = 0;
+  
   int distance = 0;
 
   // start rotating at the normal speed
@@ -73,7 +73,6 @@ void rotary_Home(void) {
   // when measurement drops below close thresh, mark time
   // mark time when measurement exceeds close thresh
   // repeat X times to and print stuff
-
 
   Serial.println("Starting to home...");
   digitalWrite(19, LOW);
@@ -102,5 +101,9 @@ void rotary_Home(void) {
   Serial.printf("3=%dmm ", distance);
   
   digitalWrite(19, HIGH);
-  Serial.printf("Saw backstop for %d ms\n", backstopStop - backstopStart);
+  homedDurationMs = backstopStop - backstopStart;
+  Serial.printf("Backstop was %d ms wide\n", backstopStop - backstopStart);
+}
+
+void rotary_ScanContinuous(void) {
 }

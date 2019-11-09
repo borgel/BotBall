@@ -33,14 +33,11 @@ const int closeThreshHysteresisMm = 12;
 const int minimumSPAD = 800;
 
 // TODO IIR?
-uint32_t homedDurationMs = 0;
 float degreesPerSector = 0;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
 void rotary_Begin(void) {
-  homedDurationMs = 0;
-
   Wire1.begin();
   Wire1.setSDA(distanceSDA);
   Wire1.setSCL(distanceSCL);
@@ -85,8 +82,6 @@ int inline getRange(void) {
 }
 
 bool rotary_Home(void) {
-  homedDurationMs = 0;
-
   int distance = 0;
 
   // start rotating at the normal speed
@@ -132,7 +127,7 @@ bool rotary_Home(void) {
   digitalWrite(ledPin, HIGH);
 
   // TODO filter this
-  homedDurationMs = backstopStop - backstopStart;
+  int const homedDurationMs = backstopStop - backstopStart;
   Serial.printf(" Backstop was %d ms wide\n", homedDurationMs);
 
   // 70* was measured in CAD is the amount of the LIDAR's view obscured by the backstop
@@ -149,9 +144,10 @@ bool rotary_Home(void) {
 }
 
 void rotary_ScanContinuous(void) {
-  // TODO run until we think the homing data is bad, then return and implicitly rehome
+  // run until we think the homing data is bad, then return and implicitly rehome
   // keep all vars local on the stack so they reset
-  // these are scanSectorWidthMs ms wide AKA degreesPerSector
+  
+  // these are degreesPerSector wide
   uint16_t scanData[360] = {};
   int currentScanSegment = 0;
 
@@ -162,6 +158,8 @@ void rotary_ScanContinuous(void) {
   int distance;
   while (true) {
     distance = getRange();
+
+    // TODO algo
   }
   
   digitalWrite(ledGPin, HIGH);

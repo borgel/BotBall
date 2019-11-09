@@ -19,7 +19,7 @@ const int distanceSCL = 22;
 
 // 20 is about 4 revolutions/second
 // slower than ~10 won't turn
-const int defaultMirrorSpeed = 20;
+const int defaultMirrorSpeed = 30;
 // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
 const int timingBudgetMs = 20;
 
@@ -28,7 +28,7 @@ const int closeThreshMm = 40;
 const int closeThreshHysteresisMm = 12;
 
 // anything below this is probably bogus (too far, etc)
-const int minimumSPAD = 900;
+const int minimumSPAD = 800;
 
 // TODO IIR?
 uint32_t homedDurationMs = 0;
@@ -61,10 +61,13 @@ void rotary_Begin(void) {
 
 int inline getRange(void) {
   // make sure we're waiting for a new sample
-  while (!distanceSensor.checkForDataReady()) {}
-  int const distance = distanceSensor.getDistance();
+  while (!distanceSensor.checkForDataReady()) {
+    // it seems to get unhappy if we poll too quickly
+    delay(1);
+  }
   int const spad = distanceSensor.getSignalPerSpad();
   uint8_t const err = distanceSensor.getRangeStatus();
+  int const distance = distanceSensor.getDistance();
   
   // check getRangeStatus, return error if failed (0 success)
   if (err != 0) {
@@ -132,8 +135,14 @@ bool rotary_Home(void) {
   // TODO calc full duration
   //360*(backstopTimeMs / 70
   Serial.printf("    %dms full duration\n", (unsigned)(360.0 * (float)homedDurationMs / 70.0));
+  // at speed 20, budget 20, backstop is 243 or 263ms wide. 360 is 1249 or 1352ms around (say 1300ms)
+  // 1300 / (20 + 20) = 32.5 scan cycles/revolution
+  // 360/32.5 = 11.1 deg-wide scan sectors
   return true;
 }
 
 void rotary_ScanContinuous(void) {
+  // TODO run until we think the homing data is bad, then return and implicitly rehome
+  // keep all vars local on the stack so they reset
+  uint16_t scanData[360] = {};
 }

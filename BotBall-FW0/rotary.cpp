@@ -11,7 +11,7 @@
 #include <Wire.h>
 
 // number of segments in scan data array
-#define NUM_SCAN_SEGMENTS (30)
+#define NUM_SCAN_SEGMENTS (400)
 
 const int pwmMirrorPin = 16;
 
@@ -26,7 +26,8 @@ const int distanceSCL = 22;
 const int defaultMirrorSpeed = 30;
 // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
 const int timingBudgetMs = 20;
-const int scanSectorWidthMs = timingBudgetMs * 2;
+const int timingBudgetGapMs = timingBudgetMs + 4;
+const int scanSectorWidthMs = timingBudgetMs + timingBudgetGapMs;
 
 // below this (or low confidence) we consider the backstop
 const int closeThreshMm = 40;
@@ -41,7 +42,7 @@ uint32_t backstopWidthMs = 0;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
-void findClossestTarget(uint16_t const * const scanArray, int const scanArrayLen);
+void findClossestTarget(int const * const scanArray, int const scanArrayLen);
 
 void rotary_Begin(void) {
   Wire1.begin();
@@ -58,7 +59,7 @@ void rotary_Begin(void) {
   // TODO what is reasonable?
   distanceSensor.setTimingBudgetInMs(timingBudgetMs);
   // >= timing budget
-  distanceSensor.setIntermeasurementPeriod(timingBudgetMs);
+  distanceSensor.setIntermeasurementPeriod(timingBudgetGapMs);
   distanceSensor.startRanging();
 
   // setup mirror motor
@@ -162,7 +163,7 @@ void rotary_ScanContinuous(void) {
   // keep all vars local on the stack so they reset
 
   // these are degreesPerSector wide
-  uint16_t scanData[NUM_SCAN_SEGMENTS] = {};
+  int scanData[NUM_SCAN_SEGMENTS] = {};
   int currentScanSegment = 0;
 
   // indicate the main loop is running with the green channel of the RGB LED
@@ -207,6 +208,7 @@ void rotary_ScanContinuous(void) {
             numVeryWrongBackstopWidth++;
           }
           if (numVeryWrongBackstopWidth > 5) {
+            Serial.println("Too many bad backstops");
             // if we have had too many strange scans recently, force a re-home
             digitalWrite(ledGPin, HIGH);
             return;
@@ -216,22 +218,21 @@ void rotary_ScanContinuous(void) {
           currentScanSegment = 0;
 
           // this slice wasn't backstop, so store it
-          scanData[currentScanSegment] = distance;
         }
-        else {
-          // normal scan, just store the measurement
-          if(currentScanSegment >= NUM_SCAN_SEGMENTS) {
-            // something has gone wrong, rehome
-            digitalWrite(ledGPin, HIGH);
-            return;
-          }
-          
-          // TODO filter?
-          scanData[currentScanSegment] = distance;
-          currentScanSegment++;
-          // clear the next scan result bucket
-          scanData[currentScanSegment] = 0;
+
+        // normal scan, just store the measurement
+        if (currentScanSegment >= NUM_SCAN_SEGMENTS) {
+          Serial.printf("Too many scans (%d) for the number of segments\n", currentScanSegment);
+          // something has gone wrong, rehome
+          digitalWrite(ledGPin, HIGH);
+          return;
         }
+
+        // TODO filter?
+        scanData[currentScanSegment] = distance;
+        currentScanSegment++;
+        // clear the next scan result bucket
+        scanData[currentScanSegment] = 0;
       }
     }
   }
@@ -239,12 +240,12 @@ void rotary_ScanContinuous(void) {
   digitalWrite(ledGPin, HIGH);
 }
 
-void findClossestTarget(uint16_t const * const scanArray, int const scanArrayLen) {
+void findClossestTarget(int const * const scanArray, int const scanArrayLen) {
   // TODO real algo
 
   Serial.println("Find target:");
-  for(int i = 0; i < scanArrayLen; i++) {
-    uint16_t const * const r = &scanArray[i];
+  for (int i = 0; i < scanArrayLen; i++) {
+    int const * const r = &scanArray[i];
     Serial.printf("%3d ", *r);
   }
   Serial.println("");

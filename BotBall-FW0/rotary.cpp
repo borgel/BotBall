@@ -18,11 +18,17 @@ const int distanceSDA = 23;
 const int distanceSCL = 22;
 
 // 20 is about 4 revolutions/second
+// slower than ~10 won't turn
 const int defaultMirrorSpeed = 20;
+// options in ms are 15, 20, 33, 50, 100 (def), 200, 500
+const int timingBudgetMs = 20;
 
 // below this (or low confidence) we consider the backstop
-const int closeThreshMm = 35;
-const int closeThreshHysteresisMm = 10;
+const int closeThreshMm = 40;
+const int closeThreshHysteresisMm = 12;
+
+// anything below this is probably bogus (too far, etc)
+const int minimumSPAD = 900;
 
 // TODO IIR?
 uint32_t homedDurationMs = 0;
@@ -31,12 +37,12 @@ SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
 void rotary_Begin(void) {
   homedDurationMs = 0;
-  
+
   Wire1.begin();
   Wire1.setSDA(distanceSDA);
   Wire1.setSCL(distanceSCL);
-  
-  if(distanceSensor.begin() != 0) {
+
+  if (distanceSensor.begin() != 0) {
     Serial.println("Failed to init distance sensor");
   }
 
@@ -44,10 +50,9 @@ void rotary_Begin(void) {
   distanceSensor.setDistanceModeShort();
   // TODO config window, etc
   // TODO what is reasonable?
-  // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
-  distanceSensor.setTimingBudgetInMs(15);
+  distanceSensor.setTimingBudgetInMs(timingBudgetMs);
   // >= timing budget
-  distanceSensor.setIntermeasurementPeriod(15);
+  distanceSensor.setIntermeasurementPeriod(timingBudgetMs);
   distanceSensor.startRanging();
 
   // setup mirror motor
@@ -55,17 +60,27 @@ void rotary_Begin(void) {
 }
 
 int inline getRange(void) {
+  // make sure we're waiting for a new sample
+  while (!distanceSensor.checkForDataReady()) {}
   int const distance = distanceSensor.getDistance();
+  int const spad = distanceSensor.getSignalPerSpad();
+  uint8_t const err = distanceSensor.getRangeStatus();
+  
   // check getRangeStatus, return error if failed (0 success)
-  if(distanceSensor.getRangeStatus() != 0) {
+  if (err != 0) {
+    // FIXME rm
+    //Serial.println("status err");
     return -1;
+  }
+  else if (spad < minimumSPAD) {
+    return -2;
   }
   return distance;
 }
 
-void rotary_Home(void) {
+bool rotary_Home(void) {
   homedDurationMs = 0;
-  
+
   int distance = 0;
 
   // start rotating at the normal speed
@@ -76,18 +91,23 @@ void rotary_Home(void) {
 
   Serial.println("Starting to home...");
   digitalWrite(19, LOW);
-  
+
   ocp_SetDuty(defaultMirrorSpeed);
-  
+
+  // FIXME rm
   Serial.printf("1=%dmm ", getRange());
+  Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
 
   // spin until we start seeing the backstop
   do {
     distance = getRange();
-  } while(distance > closeThreshMm + closeThreshHysteresisMm || distance == -1);
+  } while ((distance > closeThreshMm + closeThreshHysteresisMm) ||
+           distance < 0);
   int const backstopStart = millis();
 
+  // FIXME rm
   Serial.printf("2=%dmm ", distance);
+  Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
 
   // make sure we wait until there has been at least one more measurement
   distanceSensor.checkForDataReady();
@@ -95,14 +115,24 @@ void rotary_Home(void) {
   // spin until we stop seeing the backstop
   do {
     distance = getRange();
-  } while(distance <= closeThreshMm + closeThreshHysteresisMm || distance == -1);
+  } while ((distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm)) ||
+           distance < 0);
   int const backstopStop = millis();
 
+  // FIXME rm
   Serial.printf("3=%dmm ", distance);
-  
+  Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
+
   digitalWrite(19, HIGH);
+
+  // TODO filter this
   homedDurationMs = backstopStop - backstopStart;
-  Serial.printf("Backstop was %d ms wide\n", backstopStop - backstopStart);
+  Serial.printf(" Backstop was %d ms wide\n", homedDurationMs);
+
+  // TODO calc full duration
+  //360*(backstopTimeMs / 70
+  Serial.printf("    %dms full duration\n", (unsigned)(360.0 * (float)homedDurationMs / 70.0));
+  return true;
 }
 
 void rotary_ScanContinuous(void) {

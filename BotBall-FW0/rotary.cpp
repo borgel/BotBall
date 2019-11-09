@@ -23,6 +23,7 @@ const int distanceSCL = 22;
 const int defaultMirrorSpeed = 30;
 // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
 const int timingBudgetMs = 20;
+const int scanSectorWidthMs = timingBudgetMs * 2;
 
 // below this (or low confidence) we consider the backstop
 const int closeThreshMm = 40;
@@ -33,6 +34,7 @@ const int minimumSPAD = 800;
 
 // TODO IIR?
 uint32_t homedDurationMs = 0;
+float degreesPerSector = 0;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
@@ -133,17 +135,34 @@ bool rotary_Home(void) {
   homedDurationMs = backstopStop - backstopStart;
   Serial.printf(" Backstop was %d ms wide\n", homedDurationMs);
 
-  // TODO calc full duration
-  //360*(backstopTimeMs / 70
-  Serial.printf("    %dms full duration\n", (unsigned)(360.0 * (float)homedDurationMs / 70.0));
+  // 70* was measured in CAD is the amount of the LIDAR's view obscured by the backstop
+  float const durationFullRotation = 360.0 * (float)homedDurationMs / 70.0;
+  Serial.printf("    %dms full duration -> ", (int)durationFullRotation);
+  
   // at speed 20, budget 20, backstop is 243 or 263ms wide. 360 is 1249 or 1352ms around (say 1300ms)
+  
   // 1300 / (20 + 20) = 32.5 scan cycles/revolution
   // 360/32.5 = 11.1 deg-wide scan sectors
+  degreesPerSector = 360.0 / (durationFullRotation / (float)scanSectorWidthMs);
+  Serial.printf("~%d deg / sector\n", (int)degreesPerSector);
   return true;
 }
 
 void rotary_ScanContinuous(void) {
   // TODO run until we think the homing data is bad, then return and implicitly rehome
   // keep all vars local on the stack so they reset
+  // these are scanSectorWidthMs ms wide AKA degreesPerSector
   uint16_t scanData[360] = {};
+  int currentScanSegment = 0;
+
+  // indicate the main loop is running with the green channel of the RGB LED
+  digitalWrite(ledGPin, LOW);
+
+  bool isHoming = 0;
+  int distance;
+  while (true) {
+    distance = getRange();
+  }
+  
+  digitalWrite(ledGPin, HIGH);
 }

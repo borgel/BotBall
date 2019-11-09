@@ -1,30 +1,21 @@
 #include "IntervalTimer.h"
 #include "rotary.h"
+#include "hw.h"
 
 // motor driver
 // https://www.pololu.com/product/2135
-
-const int pwmAPin = 18;
-const int pwmBPin = 17;
-const int phaseAPin = 15;
-const int phaseBPin = 18;
-
-// single status LED
-const int ledPin = 19;
-
-// active low
-const int ledRPin = 6;
-const int ledGPin = 3;
-const int ledBPin = 4;
 
 void setup() {
   // status LED
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, HIGH);
 
-  pinMode(ledRPin, INPUT);
-  pinMode(ledGPin, INPUT);
-  pinMode(ledBPin, INPUT);
+  pinMode(ledRPin, OUTPUT);
+  pinMode(ledGPin, OUTPUT);
+  pinMode(ledBPin, OUTPUT);
+  digitalWrite(ledRPin, HIGH);
+  digitalWrite(ledGPin, HIGH);
+  digitalWrite(ledBPin, HIGH);
 
   // setup PWM and direction pins
   pinMode(phaseAPin, OUTPUT);
@@ -38,13 +29,15 @@ void setup() {
   Serial.println("Booted...");
 
   rotary_Begin();
-  
-  //digitalWrite(ledPin, LOW);
-  rotary_Home();
-  //digitalWrite(ledPin, HIGH);
+  // do it again to avoid any partial homes
+  rotary_Begin();
 }
 
 void loop() {
+  rotary_Home();
+  rotary_ScanContinuous();
+  // only returns if it needs to re-home
+  
   /*
   digitalWrite(phaseAPin, LOW);
   digitalWrite(phaseBPin, HIGH);
@@ -52,13 +45,4 @@ void loop() {
   analogWrite(pwmAPin, 64);
   analogWrite(pwmBPin, 255);
   */
-  
-  //digitalWrite(ledPin, LOW);
-
-  // FIXME rm
-  rotary_Home();
-
-  //digitalWrite(ledPin, HIGH);
-
-  // rotate the other way
 }

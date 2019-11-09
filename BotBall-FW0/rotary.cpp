@@ -1,5 +1,6 @@
 #include "rotary.h"
 #include "OcPwm.h"
+#include "hw.h"
 
 #include <ComponentObject.h>
 #include <RangeSensor.h>
@@ -93,7 +94,7 @@ bool rotary_Home(void) {
   // repeat X times to and print stuff
 
   Serial.println("Starting to home...");
-  digitalWrite(19, LOW);
+  digitalWrite(ledPin, LOW);
 
   ocp_SetDuty(defaultMirrorSpeed);
 
@@ -126,7 +127,7 @@ bool rotary_Home(void) {
   Serial.printf("3=%dmm ", distance);
   Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
 
-  digitalWrite(19, HIGH);
+  digitalWrite(ledPin, HIGH);
 
   // TODO filter this
   homedDurationMs = backstopStop - backstopStart;

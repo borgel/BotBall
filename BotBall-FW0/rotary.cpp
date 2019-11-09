@@ -10,6 +10,9 @@
 
 #include <Wire.h>
 
+// number of segments in scan data array
+#define NUM_SCAN_SEGMENTS (30)
+
 const int pwmMirrorPin = 16;
 
 // TODO abstract these
@@ -34,8 +37,11 @@ const int minimumSPAD = 800;
 
 // TODO IIR?
 float degreesPerSector = 0;
+uint32_t backstopWidthMs = 0;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
+
+void findClossestTarget(uint16_t const * const scanArray, int const scanArrayLen);
 
 void rotary_Begin(void) {
   Wire1.begin();
@@ -68,7 +74,7 @@ int inline getRange(void) {
   int const spad = distanceSensor.getSignalPerSpad();
   uint8_t const err = distanceSensor.getRangeStatus();
   int const distance = distanceSensor.getDistance();
-  
+
   // check getRangeStatus, return error if failed (0 success)
   if (err != 0) {
     // FIXME rm
@@ -79,6 +85,12 @@ int inline getRange(void) {
     return -2;
   }
   return distance;
+}
+
+// takes the RAW return from getRange (inc error code!) and tells you if it probably sees the backstop
+bool probablySeesBackstop(int const distance) {
+  return (distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm)) ||
+         distance < 0;
 }
 
 bool rotary_Home(void) {
@@ -104,6 +116,7 @@ bool rotary_Home(void) {
     distance = getRange();
   } while ((distance > closeThreshMm + closeThreshHysteresisMm) ||
            distance < 0);
+  //} while(!probablySeesBackstop(distance));
   int const backstopStart = millis();
 
   // FIXME rm
@@ -116,8 +129,7 @@ bool rotary_Home(void) {
   // spin until we stop seeing the backstop
   do {
     distance = getRange();
-  } while ((distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm)) ||
-           distance < 0);
+  } while (probablySeesBackstop(distance));
   int const backstopStop = millis();
 
   // FIXME rm
@@ -128,14 +140,16 @@ bool rotary_Home(void) {
 
   // TODO filter this
   int const homedDurationMs = backstopStop - backstopStart;
+  // useful for sanity checks in runloop
+  backstopWidthMs = homedDurationMs;
   Serial.printf(" Backstop was %d ms wide\n", homedDurationMs);
 
   // 70* was measured in CAD is the amount of the LIDAR's view obscured by the backstop
   float const durationFullRotation = 360.0 * (float)homedDurationMs / 70.0;
   Serial.printf("    %dms full duration -> ", (int)durationFullRotation);
-  
+
   // at speed 20, budget 20, backstop is 243 or 263ms wide. 360 is 1249 or 1352ms around (say 1300ms)
-  
+
   // 1300 / (20 + 20) = 32.5 scan cycles/revolution
   // 360/32.5 = 11.1 deg-wide scan sectors
   degreesPerSector = 360.0 / (durationFullRotation / (float)scanSectorWidthMs);
@@ -146,21 +160,92 @@ bool rotary_Home(void) {
 void rotary_ScanContinuous(void) {
   // run until we think the homing data is bad, then return and implicitly rehome
   // keep all vars local on the stack so they reset
-  
+
   // these are degreesPerSector wide
-  uint16_t scanData[360] = {};
+  uint16_t scanData[NUM_SCAN_SEGMENTS] = {};
   int currentScanSegment = 0;
 
   // indicate the main loop is running with the green channel of the RGB LED
   digitalWrite(ledGPin, LOW);
 
-  bool isHoming = 0;
-  int distance;
-  while (true) {
-    distance = getRange();
+  uint32_t startSeeingBackstopMs = 0, stopSeeingBackstopMs = 0;
+  bool seesBackstop = 0;
+  int numVeryWrongBackstopWidth = 0;
 
-    // TODO algo
+  while (true) {
+    int const distance = getRange();
+    if (distance < 0) {
+      // error, move on
+      continue;
+    }
+    else {
+      if (probablySeesBackstop(distance)) {
+        // pseudo-home
+        if (!seesBackstop) {
+          // transition to seeing backstop
+          startSeeingBackstopMs = millis();
+          seesBackstop = true;
+
+          // search for a target in scan results
+          findClossestTarget(scanData, NUM_SCAN_SEGMENTS);
+        }
+        else {
+          // continuing to look at backstop, nothing to do
+        }
+      }
+      else {
+        // normal scan
+        if (seesBackstop) {
+          // transition out of seeing backstop
+          stopSeeingBackstopMs = millis();
+          seesBackstop = false;
+
+          // guess if this scan was wildly off from expectations
+          uint32_t const thisBackstopWidth = stopSeeingBackstopMs - startSeeingBackstopMs;
+          if (thisBackstopWidth > backstopWidthMs * 2 ||
+              thisBackstopWidth < backstopWidthMs / 2) {
+            numVeryWrongBackstopWidth++;
+          }
+          if (numVeryWrongBackstopWidth > 5) {
+            // if we have had too many strange scans recently, force a re-home
+            digitalWrite(ledGPin, HIGH);
+            return;
+          }
+
+          // scan was ok, reset the scan slice counter
+          currentScanSegment = 0;
+
+          // this slice wasn't backstop, so store it
+          scanData[currentScanSegment] = distance;
+        }
+        else {
+          // normal scan, just store the measurement
+          if(currentScanSegment >= NUM_SCAN_SEGMENTS) {
+            // something has gone wrong, rehome
+            digitalWrite(ledGPin, HIGH);
+            return;
+          }
+          
+          // TODO filter?
+          scanData[currentScanSegment] = distance;
+          currentScanSegment++;
+          // clear the next scan result bucket
+          scanData[currentScanSegment] = 0;
+        }
+      }
+    }
   }
-  
+
   digitalWrite(ledGPin, HIGH);
+}
+
+void findClossestTarget(uint16_t const * const scanArray, int const scanArrayLen) {
+  // TODO real algo
+
+  Serial.println("Find target:");
+  for(int i = 0; i < scanArrayLen; i++) {
+    uint16_t const * const r = &scanArray[i];
+    Serial.printf("%3d ", *r);
+  }
+  Serial.println("");
 }

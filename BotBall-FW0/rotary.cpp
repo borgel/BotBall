@@ -60,6 +60,22 @@ void rotary_Begin(void) {
   // in case it was still running
   distanceSensor.stopRanging();
 
+  Serial.print("Start temp cal...");
+  distanceSensor.startTemperatureUpdate();
+  Serial.println("done");
+
+  /*
+  // manual crosstalk calibration routine
+  while (1) {
+    // clipboard ~110mm away from sensor (through mirror)
+    distanceSensor.calibrateXTalk(110);
+    uint16_t xt = distanceSensor.getXTalk();
+    Serial.printf("cal done. xt = %d\n", xt)
+  }
+  */
+  // average measured at 35000 counts
+  distanceSensor.setXTalk(35000);
+
   // let's not pretend
   distanceSensor.setDistanceModeShort();
   //distanceSensor.setDistanceModeLong();
@@ -80,20 +96,20 @@ int inline getRange(int const minSpad) {
 
   // make sure we're waiting for a new sample
   /*
-  while (!distanceSensor.checkForDataReady()) {
+    while (!distanceSensor.checkForDataReady()) {
     // it seems to get unhappy if we poll too quickly
     Serial.print(".");
     delay(1);
-  }
+    }
   */
-  
+
   int distance;
   do {
     distance = distanceSensor.getDistance();
     //distanceSensor.checkForDataReady()
-  } while(distance == lastRange);
+  } while (distance == lastRange);
   lastRange = distance;
-  
+
   int const spad = distanceSensor.getSignalPerSpad();
   int const sigRate = distanceSensor.getSignalRate();
   int const ambientRate = distanceSensor.getAmbientRate();

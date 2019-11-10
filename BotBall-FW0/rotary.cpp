@@ -10,8 +10,9 @@
 
 #include <Wire.h>
 
-// number of segments in scan data array
-#define NUM_SCAN_SEGMENTS (60)
+// number of segments in scan data array. Expect about 30 used?
+// 360* / 11* segments = 32.7 segments
+#define NUM_SCAN_SEGMENTS (50)
 
 const int pwmMirrorPin = 16;
 
@@ -25,7 +26,7 @@ const int distanceSCL = 22;
 // slower than ~10 won't turn
 const int defaultMirrorSpeed = 30;
 // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
-const int timingBudgetMs = 20;
+const int timingBudgetMs = 15;
 const int timingBudgetGapMs = timingBudgetMs + 4;
 const int scanSectorWidthMs = timingBudgetMs + timingBudgetGapMs;
 
@@ -34,7 +35,8 @@ const int closeThreshMm = 40;
 const int closeThreshHysteresisMm = 12;
 
 // anything below this is probably bogus (too far, etc)
-const int minimumSPAD = 800;
+const int minimumSPADforHoming = 800;
+const int minimumSPADforRunning = 600;
 
 // TODO IIR?
 float degreesPerSector = 0;
@@ -60,6 +62,7 @@ void rotary_Begin(void) {
 
   // let's not pretend
   distanceSensor.setDistanceModeShort();
+  //distanceSensor.setDistanceModeLong();
   distanceSensor.setTimingBudgetInMs(timingBudgetMs);
   // >= timing budget
   distanceSensor.setIntermeasurementPeriod(timingBudgetGapMs);
@@ -71,7 +74,7 @@ void rotary_Begin(void) {
   ocp_Setup(pwmMirrorPin);
 }
 
-int inline getRange(void) {
+int inline getRange(int const minSpad) {
   // this is insane, but if it works...
   static int lastRange = 0;
 
@@ -106,7 +109,7 @@ int inline getRange(void) {
   // FIXME rm
   //Serial.printf("%3d @ %5d spad \t%4d amb \t%5d sig\n", distance, spad, ambientRate, sigRate);
 
-  if (spad < minimumSPAD) {
+  if (spad < minSpad) {
     return -2;
   }
   return distance;
@@ -116,12 +119,6 @@ int inline getRange(void) {
 bool probablySeesBackstop(int const distance) {
   // if it sees something close
   return distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm);
-  
-  /*
-  // if it sees something close or is SPAD error
-  return (distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm)) ||
-         distance < 0;
-         */
 }
 
 bool rotary_Home(void) {
@@ -139,12 +136,12 @@ bool rotary_Home(void) {
   ocp_SetDuty(defaultMirrorSpeed);
 
   // FIXME rm
-  Serial.printf("1=%dmm ", getRange());
+  Serial.printf("1=%dmm ", getRange(minimumSPADforHoming));
   Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
 
   // spin until we start seeing the backstop
   do {
-    distance = getRange();
+    distance = getRange(minimumSPADforHoming);
   } while ((distance > closeThreshMm + closeThreshHysteresisMm) ||
            distance < 0);
   //} while(!probablySeesBackstop(distance));
@@ -156,7 +153,7 @@ bool rotary_Home(void) {
 
   // spin until we stop seeing the backstop
   do {
-    distance = getRange();
+    distance = getRange(minimumSPADforHoming);
   } while (probablySeesBackstop(distance));
   int const backstopStop = millis();
 
@@ -201,7 +198,7 @@ void rotary_ScanContinuous(void) {
   int numVeryWrongBackstopWidth = 0;
 
   while (true) {
-    int distance = getRange();
+    int distance = getRange(minimumSPADforRunning);
     // if we got a 'bad SPAD', assume that means any object is very far away
     if (distance == -2) {
       distance = 0;
@@ -263,7 +260,7 @@ void rotary_ScanContinuous(void) {
       // if this was a 0, make sure we wait a little while before checking for new data
       if (distance == 0) {
         // why do we need to be the ones to do this?
-        delay(timingBudgetGapMs - 1);
+        //delay(timingBudgetGapMs - 1);
       }
     }
   }

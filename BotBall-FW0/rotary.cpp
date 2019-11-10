@@ -53,40 +53,60 @@ void rotary_Begin(void) {
     Serial.println("Failed to init distance sensor");
     digitalWrite(ledRPin, LOW);
   }
+  delay(500);
 
   // in case it was still running
   distanceSensor.stopRanging();
 
   // let's not pretend
   distanceSensor.setDistanceModeShort();
-  // TODO config window, etc
-  // TODO what is reasonable?
   distanceSensor.setTimingBudgetInMs(timingBudgetMs);
   // >= timing budget
   distanceSensor.setIntermeasurementPeriod(timingBudgetGapMs);
+  // don't set any params after this
   distanceSensor.startRanging();
+  delay(100);
 
   // setup mirror motor
   ocp_Setup(pwmMirrorPin);
 }
 
 int inline getRange(void) {
+  // this is insane, but if it works...
+  static int lastRange = 0;
+
   // make sure we're waiting for a new sample
+  /*
   while (!distanceSensor.checkForDataReady()) {
     // it seems to get unhappy if we poll too quickly
+    Serial.print(".");
     delay(1);
   }
-  int const spad = distanceSensor.getSignalPerSpad();
-  uint8_t const err = distanceSensor.getRangeStatus();
-  int const distance = distanceSensor.getDistance();
+  */
   
+  int distance;
+  do {
+    distance = distanceSensor.getDistance();
+    //distanceSensor.checkForDataReady()
+  } while(distance == lastRange);
+  lastRange = distance;
+  
+  int const spad = distanceSensor.getSignalPerSpad();
+  int const sigRate = distanceSensor.getSignalRate();
+  int const ambientRate = distanceSensor.getAmbientRate();
+  uint8_t const err = distanceSensor.getRangeStatus();
+  //int distance = distanceSensor.getDistance();
+
   // check getRangeStatus, return error if failed (0 success)
   if (err != 0) {
     // FIXME rm
-    //Serial.println("status err");
+    Serial.println("signal err");
     return -1;
   }
-  else if (spad < minimumSPAD) {
+  // FIXME rm
+  //Serial.printf("%3d @ %5d spad \t%4d amb \t%5d sig\n", distance, spad, ambientRate, sigRate);
+
+  if (spad < minimumSPAD) {
     return -2;
   }
   return distance;
@@ -94,8 +114,14 @@ int inline getRange(void) {
 
 // takes the RAW return from getRange (inc error code!) and tells you if it probably sees the backstop
 bool probablySeesBackstop(int const distance) {
+  // if it sees something close
+  return distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm);
+  
+  /*
+  // if it sees something close or is SPAD error
   return (distance > 0 && (distance <= closeThreshMm + closeThreshHysteresisMm)) ||
          distance < 0;
+         */
 }
 
 bool rotary_Home(void) {

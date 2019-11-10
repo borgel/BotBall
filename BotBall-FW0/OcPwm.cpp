@@ -37,6 +37,6 @@ static void handlePwmTick(void) {
   }
   else {
     pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
+    digitalWriteFast(pin, LOW);
   }
 }

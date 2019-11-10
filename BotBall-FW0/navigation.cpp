@@ -5,7 +5,8 @@
 
 static const int targetDistanceMm = 50;
 
-static const int targetRelHeadingErrorDeg = 5;
+// spacial resolution isn't that good...
+static const int targetRelHeadingErrorDeg = 20;
 
 enum TrackingState {
   TS_UNKNOWN,
@@ -71,12 +72,13 @@ static void programMotors(void) {
     return;
   }
   // else, there is navigation to do
+  state.tracState = TS_SEEKING;
 
   // adjust base speed based on range
   int rangeDelta = state.targetRangeMm - targetDistanceMm;
   if (rangeDelta > 0) {
     // TODO make this...proportional
-    state.currentBaseVeloc = 20;
+    state.currentBaseVeloc = 150;
   }
   else {
     state.currentBaseVeloc = 0;
@@ -86,27 +88,27 @@ static void programMotors(void) {
   int16_t speedB = state.currentBaseVeloc;
 
   if (state.targetHeadingRel < 0) {
-    speedA -= 5;
-    speedB += 5;
+    speedA -= 50;
+    speedB += 50;
   }
   else if (state.targetHeadingRel > 0) {
-    speedA += 5;
-    speedB -= 5;
+    speedA += 50;
+    speedB -= 50;
   }
 
   // set directions. A low, B high, is foreward
   if (speedA < 0) {
-    digitalWrite(phaseAPin, LOW);
+    digitalWrite(phaseAPin, HIGH);
   }
   else {
-    digitalWrite(phaseAPin, HIGH);
+    digitalWrite(phaseAPin, LOW);
   }
 
   if (speedB < 0) {
-    digitalWrite(phaseBPin, HIGH);
+    digitalWrite(phaseBPin, LOW);
   }
   else {
-    digitalWrite(phaseBPin, LOW);
+    digitalWrite(phaseBPin, HIGH);
   }
 
   // set the actual speed

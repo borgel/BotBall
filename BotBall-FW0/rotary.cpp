@@ -24,7 +24,7 @@ const int distanceSCL = 22;
 
 // 20 is about 4 revolutions/second
 // slower than ~10 won't turn
-const int defaultMirrorSpeed = 30;
+const int defaultMirrorSpeed = 160;
 // options in ms are 15, 20, 33, 50, 100 (def), 200, 500
 const int timingBudgetMs = 15;
 const int timingBudgetGapMs = timingBudgetMs + 4;
@@ -87,26 +87,16 @@ void rotary_Begin(void) {
   delay(100);
 
   // setup mirror motor
-  ocp_Setup(pwmMirrorPin);
+  ocp_Setup(pwmMirrorPin, defaultMirrorSpeed);
 }
 
 int inline getRange(int const minSpad) {
   // this is insane, but if it works...
   static int lastRange = 0;
 
-  // make sure we're waiting for a new sample
-  /*
-    while (!distanceSensor.checkForDataReady()) {
-    // it seems to get unhappy if we poll too quickly
-    Serial.print(".");
-    delay(1);
-    }
-  */
-
   int distance;
   do {
     distance = distanceSensor.getDistance();
-    //distanceSensor.checkForDataReady()
   } while (distance == lastRange);
   lastRange = distance;
 
@@ -114,7 +104,6 @@ int inline getRange(int const minSpad) {
   int const sigRate = distanceSensor.getSignalRate();
   int const ambientRate = distanceSensor.getAmbientRate();
   uint8_t const err = distanceSensor.getRangeStatus();
-  //int distance = distanceSensor.getDistance();
 
   // check getRangeStatus, return error if failed (0 success)
   if (err != 0) {
@@ -149,6 +138,7 @@ bool rotary_Home(void) {
   Serial.println("Starting to home...");
   digitalWrite(ledPin, LOW);
 
+  ocp_Resume();
   ocp_SetDuty(defaultMirrorSpeed);
 
   // FIXME rm
@@ -160,7 +150,6 @@ bool rotary_Home(void) {
     distance = getRange(minimumSPADforHoming);
   } while ((distance > closeThreshMm + closeThreshHysteresisMm) ||
            distance < 0);
-  //} while(!probablySeesBackstop(distance));
   int const backstopStart = millis();
 
   // FIXME rm
@@ -272,12 +261,6 @@ void rotary_ScanContinuous(void) {
       // TODO filter?
       scanData[currentScanSegment] = distance;
       currentScanSegment++;
-
-      // if this was a 0, make sure we wait a little while before checking for new data
-      if (distance == 0) {
-        // why do we need to be the ones to do this?
-        //delay(timingBudgetGapMs - 1);
-      }
     }
   }
 
@@ -294,4 +277,6 @@ void findClossestTarget(int const * const scanArray, int const scanArrayLen, int
     Serial.printf("%3d ", *r);
   }
   Serial.println("");
+
+  // TODO find blobs which are 2+ sectors wide, then send to nav module
 }

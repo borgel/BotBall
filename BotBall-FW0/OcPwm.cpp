@@ -10,44 +10,43 @@ static uint8_t count;
 static volatile uint8_t countCompare;
 static int pin;
 static int const periodTicks = 100;
+static bool paused = false;
 
 static void handlePwmTick(void);
 
-void ocp_Setup(int const newPin) {
+void ocp_Setup(int const newPin, uint8_t const dutyCycle) {
   pin = newPin;
   count = 0;
-  countCompare = 0;
+  countCompare = dutyCycle;
 
   // 150000 = 0.15s
   //  10000 = 0.01s
   //   1000 = 0.001s
   //    100 = 0.0001s
   // no easy way to pass state ctx to this CB, so don't bother encapsulating
-  ocp_Resume();
+  timer.begin(handlePwmTick, periodTicks);
 }
 
 void ocp_Pause(void) {
-  timer.end();
+  //timer.end();
+  paused = true;
 }
 void ocp_Resume(void) {
-  timer.begin(handlePwmTick, periodTicks);
+  count = 0;
+  paused = false;
 }
 
 // in counts/255
 void ocp_SetDuty(uint8_t const newDuty) {
-  if (countCompare == 0 && newDuty > 0) {
-    // restart timer
-    ocp_Resume();
-  }
   countCompare = newDuty;
-
-  if (countCompare == 0) {
-    // stop timer for now
-    ocp_Pause();
-  }
 }
 
 static void handlePwmTick(void) {
+  if(paused) {
+    digitalWriteFast(pin, HIGH);
+    pinMode(pin, INPUT);
+    return;
+  }
   count++;
   if (count > countCompare) {
     // "open drain" hi-z

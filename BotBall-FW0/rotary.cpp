@@ -66,13 +66,13 @@ void rotary_Begin(void) {
   Serial.println("done");
 
   /*
-  // manual crosstalk calibration routine
-  while (1) {
+    // manual crosstalk calibration routine
+    while (1) {
     // clipboard ~110mm away from sensor (through mirror)
     distanceSensor.calibrateXTalk(110);
     uint16_t xt = distanceSensor.getXTalk();
     Serial.printf("cal done. xt = %d\n", xt)
-  }
+    }
   */
   // average measured at 35000 counts
   distanceSensor.setXTalk(35000);
@@ -278,7 +278,36 @@ void findClossestTarget(int const * const scanArray, int const scanArrayLen, int
   }
   Serial.println("");
 
-  // TODO find blobs which are 2+ sectors wide, then send to nav module
-  nav_SetHeadingOffset(0);
-  nav_SetRange(0);
+  // find blobs which are 2+ sectors wide, then send to nav module
+  
+  // TODO do a weighted centroid or something
+  int maxWithNeighborIndex = -1;
+  int maxWithNeighborVal = 0;
+  // start at 1, and end at -1, so we can safely look behind
+  for (int i = 1; i < numElements; i++) {
+    int const * const r = &scanArray[i];
+    int const * const rb = &scanArray[i - 1];
+    if (*r > maxWithNeighborVal) {
+      // make sure that r has a neighbor with at least SOME counts
+      if (*rb > 0) {
+        maxWithNeighborVal = *r;
+        maxWithNeighborIndex = i;
+      }
+    }
+  }
+
+  if (maxWithNeighborIndex == -1) {
+    // no targets found
+    return;
+  }
+
+  // translate from array index to approx heading;
+  int const heading = degreesPerSector * maxWithNeighborIndex;
+  // translate to heading relative to target heading (360 - 70) / 2 = 145*
+  int const headingOffset = heading - 145 - 55;
+
+  Serial.printf("Target %dmm away at %d* relative (%d abs)\n", maxWithNeighborVal, headingOffset, heading);
+
+  nav_SetHeadingOffset(headingOffset);
+  nav_SetRange(maxWithNeighborVal);
 }

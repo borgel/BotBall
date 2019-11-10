@@ -3,4 +3,6 @@
 #include <stdint.h>
 
 void ocp_Setup(int const newPin);
+void ocp_Pause(void);
+void ocp_Resume(void);
 void ocp_SetDuty(uint8_t const newDuty);

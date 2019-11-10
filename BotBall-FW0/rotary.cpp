@@ -201,7 +201,11 @@ void rotary_ScanContinuous(void) {
   int numVeryWrongBackstopWidth = 0;
 
   while (true) {
-    int const distance = getRange();
+    int distance = getRange();
+    // if we got a 'bad SPAD', assume that means any object is very far away
+    if (distance == -2) {
+      distance = 0;
+    }
     // we are OK if distance is an error (that gets fed into probablySeesBackstop)
     if (probablySeesBackstop(distance)) {
       // pseudo-home
@@ -255,9 +259,13 @@ void rotary_ScanContinuous(void) {
       // TODO filter?
       scanData[currentScanSegment] = distance;
       currentScanSegment++;
-    }
 
-    //delay(timingBudgetGapMs);
+      // if this was a 0, make sure we wait a little while before checking for new data
+      if (distance == 0) {
+        // why do we need to be the ones to do this?
+        delay(timingBudgetGapMs - 1);
+      }
+    }
   }
 
 

@@ -1,5 +1,6 @@
 #include "IntervalTimer.h"
 #include "rotary.h"
+#include "navigation.h"
 #include "hw.h"
 
 // motor driver
@@ -17,16 +18,12 @@ void setup() {
   digitalWrite(ledGPin, HIGH);
   digitalWrite(ledBPin, HIGH);
 
-  // setup PWM and direction pins
-  pinMode(phaseAPin, OUTPUT);
-  pinMode(phaseBPin, OUTPUT);
-  pinMode(pwmAPin, OUTPUT);
-  pinMode(pwmBPin, OUTPUT);
-
   delay(2000);
 
   Serial.begin(115200);
   Serial.println("Booted...");
+
+  nav_Begin();
 
   rotary_Begin();
   // do it again to avoid any partial homes
@@ -37,12 +34,6 @@ void loop() {
   rotary_Home();
   rotary_ScanContinuous();
   // only returns if it needs to re-home
-  
-  /*
-  digitalWrite(phaseAPin, LOW);
-  digitalWrite(phaseBPin, HIGH);
 
-  analogWrite(pwmAPin, 64);
-  analogWrite(pwmBPin, 255);
-  */
+  // TODO reset drive?
 }

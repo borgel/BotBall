@@ -1,6 +1,7 @@
 #include "rotary.h"
 #include "OcPwm.h"
 #include "hw.h"
+#include "navigation.h"
 
 #include <ComponentObject.h>
 #include <RangeSensor.h>
@@ -264,7 +265,6 @@ void rotary_ScanContinuous(void) {
     }
   }
 
-
   digitalWrite(ledGPin, HIGH);
 }
 
@@ -279,4 +279,6 @@ void findClossestTarget(int const * const scanArray, int const scanArrayLen, int
   Serial.println("");
 
   // TODO find blobs which are 2+ sectors wide, then send to nav module
+  nav_SetHeadingOffset(0);
+  nav_SetRange(0);
 }

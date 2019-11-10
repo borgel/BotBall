@@ -11,7 +11,7 @@
 #include <Wire.h>
 
 // number of segments in scan data array
-#define NUM_SCAN_SEGMENTS (400)
+#define NUM_SCAN_SEGMENTS (60)
 
 const int pwmMirrorPin = 16;
 
@@ -42,7 +42,7 @@ uint32_t backstopWidthMs = 0;
 
 SFEVL53L1X distanceSensor(Wire1, distanceNShutdown, distanceInt);
 
-void findClossestTarget(int const * const scanArray, int const scanArrayLen);
+void findClossestTarget(int const * const scanArray, int const scanArrayLen, int const numElements);
 
 void rotary_Begin(void) {
   Wire1.begin();
@@ -51,7 +51,11 @@ void rotary_Begin(void) {
 
   if (distanceSensor.begin() != 0) {
     Serial.println("Failed to init distance sensor");
+    digitalWrite(ledRPin, LOW);
   }
+
+  // in case it was still running
+  distanceSensor.stopRanging();
 
   // let's not pretend
   distanceSensor.setDistanceModeShort();
@@ -75,7 +79,7 @@ int inline getRange(void) {
   int const spad = distanceSensor.getSignalPerSpad();
   uint8_t const err = distanceSensor.getRangeStatus();
   int const distance = distanceSensor.getDistance();
-
+  
   // check getRangeStatus, return error if failed (0 success)
   if (err != 0) {
     // FIXME rm
@@ -123,9 +127,6 @@ bool rotary_Home(void) {
   // FIXME rm
   Serial.printf("2=%dmm ", distance);
   Serial.printf("(%d/spad)", distanceSensor.getSignalPerSpad());
-
-  // make sure we wait until there has been at least one more measurement
-  distanceSensor.checkForDataReady();
 
   // spin until we stop seeing the backstop
   do {
@@ -175,76 +176,73 @@ void rotary_ScanContinuous(void) {
 
   while (true) {
     int const distance = getRange();
-    if (distance < 0) {
-      // error, move on
-      continue;
-    }
-    else {
-      if (probablySeesBackstop(distance)) {
-        // pseudo-home
-        if (!seesBackstop) {
-          // transition to seeing backstop
-          startSeeingBackstopMs = millis();
-          seesBackstop = true;
+    // we are OK if distance is an error (that gets fed into probablySeesBackstop)
+    if (probablySeesBackstop(distance)) {
+      // pseudo-home
+      if (!seesBackstop) {
+        // transition to seeing backstop
+        startSeeingBackstopMs = millis();
+        seesBackstop = true;
 
-          // search for a target in scan results
-          findClossestTarget(scanData, NUM_SCAN_SEGMENTS);
-        }
-        else {
-          // continuing to look at backstop, nothing to do
-        }
+        // search for a target in scan results
+        findClossestTarget(scanData, NUM_SCAN_SEGMENTS, currentScanSegment);
       }
       else {
-        // normal scan
-        if (seesBackstop) {
-          // transition out of seeing backstop
-          stopSeeingBackstopMs = millis();
-          seesBackstop = false;
+        // continuing to look at backstop, nothing to do
+      }
+    }
+    else {
+      // normal scan
+      if (seesBackstop) {
+        // transition out of seeing backstop
+        stopSeeingBackstopMs = millis();
+        seesBackstop = false;
 
-          // guess if this scan was wildly off from expectations
-          uint32_t const thisBackstopWidth = stopSeeingBackstopMs - startSeeingBackstopMs;
-          if (thisBackstopWidth > backstopWidthMs * 2 ||
-              thisBackstopWidth < backstopWidthMs / 2) {
-            numVeryWrongBackstopWidth++;
-          }
-          if (numVeryWrongBackstopWidth > 5) {
-            Serial.println("Too many bad backstops");
-            // if we have had too many strange scans recently, force a re-home
-            digitalWrite(ledGPin, HIGH);
-            return;
-          }
-
-          // scan was ok, reset the scan slice counter
-          currentScanSegment = 0;
-
-          // this slice wasn't backstop, so store it
+        // guess if this scan was wildly off from expectations
+        uint32_t const thisBackstopWidth = stopSeeingBackstopMs - startSeeingBackstopMs;
+        if (thisBackstopWidth > backstopWidthMs * 2 ||
+            thisBackstopWidth < backstopWidthMs / 2) {
+          numVeryWrongBackstopWidth++;
         }
-
-        // normal scan, just store the measurement
-        if (currentScanSegment >= NUM_SCAN_SEGMENTS) {
-          Serial.printf("Too many scans (%d) for the number of segments\n", currentScanSegment);
-          // something has gone wrong, rehome
+        if (numVeryWrongBackstopWidth > 5) {
+          Serial.println("Too many bad backstops");
+          // if we have had too many strange scans recently, force a re-home
           digitalWrite(ledGPin, HIGH);
           return;
         }
 
-        // TODO filter?
-        scanData[currentScanSegment] = distance;
-        currentScanSegment++;
-        // clear the next scan result bucket
-        scanData[currentScanSegment] = 0;
+        // scan was ok, reset the scan slice counter and storage arrays
+        memset(scanData, 0, NUM_SCAN_SEGMENTS * sizeof(scanData[0]));
+        currentScanSegment = 0;
+
+        // this slice wasn't backstop, so store it
       }
+
+      // normal scan, just store the measurement
+      if (currentScanSegment >= NUM_SCAN_SEGMENTS) {
+        Serial.printf("Too many scans (%d) for the number of segments\n", currentScanSegment);
+        // something has gone wrong, rehome
+        digitalWrite(ledGPin, HIGH);
+        return;
+      }
+
+      // TODO filter?
+      scanData[currentScanSegment] = distance;
+      currentScanSegment++;
     }
+
+    //delay(timingBudgetGapMs);
   }
+
 
   digitalWrite(ledGPin, HIGH);
 }
 
-void findClossestTarget(int const * const scanArray, int const scanArrayLen) {
+void findClossestTarget(int const * const scanArray, int const scanArrayLen, int const numElements) {
   // TODO real algo
 
-  Serial.println("Find target:");
-  for (int i = 0; i < scanArrayLen; i++) {
+  Serial.printf("Find target %d:\n", numElements);
+  for (int i = 0; i < numElements; i++) {
     int const * const r = &scanArray[i];
     Serial.printf("%3d ", *r);
   }

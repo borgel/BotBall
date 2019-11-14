@@ -8,6 +8,10 @@ static const int targetDistanceMm = 50;
 // spacial resolution isn't that good...
 static const int targetRelHeadingErrorDeg = 20;
 
+// below a total of about 120 counts a side wont drive
+static const int motorASpeedTrim = -20;
+static const int motorBSpeedTrim = 100;
+
 enum TrackingState {
   TS_UNKNOWN,
   TS_NO_TARGET,
@@ -84,8 +88,8 @@ static void programMotors(void) {
     state.currentBaseVeloc = 0;
   }
 
-  int16_t speedA = state.currentBaseVeloc;
-  int16_t speedB = state.currentBaseVeloc;
+  int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
+  int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
 
   if (state.targetHeadingRel < 0) {
     speedA -= 50;

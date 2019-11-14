@@ -45,28 +45,28 @@ void nav_Begin(void) {
   // FIXME rm
   /*
     state.currentBaseVeloc = motorBaseSpeed;
-  int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
-  int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
+    int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
+    int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
 
-  if (speedA < 0) {
+    if (speedA < 0) {
     digitalWrite(phaseAPin, HIGH);
-  }
-  else {
+    }
+    else {
     digitalWrite(phaseAPin, LOW);
-  }
+    }
 
-  if (speedB < 0) {
+    if (speedB < 0) {
     digitalWrite(phaseBPin, LOW);
-  }
-  else {
+    }
+    else {
     digitalWrite(phaseBPin, HIGH);
-  }
+    }
 
-  // set the actual speed
-  analogWrite(pwmAPin, speedA);
-  analogWrite(pwmBPin, speedB);
+    // set the actual speed
+    analogWrite(pwmAPin, speedA);
+    analogWrite(pwmBPin, speedB);
 
-  while(1) {}
+    while(1) {}
   */
 }
 
@@ -138,30 +138,23 @@ static void programMotors(void) {
   int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
   int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
 
-  // FIXME move to top
-  int16_t const turn = 30;
-  if (state.targetHeadingRel < 0) {
-    speedA += turn;
-    speedB -= turn;
-  }
-  else if (state.targetHeadingRel > 0) {
-    speedA -= turn;
-    speedB += turn;
-  }
 
-  // set directions. A low, B high, is foreward
-  if (speedA < 0) {
-    digitalWrite(phaseAPin, HIGH);
+  digitalWrite(phaseAPin, LOW);
+  digitalWrite(phaseBPin, HIGH);
+
+  if (abs(state.targetHeadingRel) < targetRelHeadingErrorDeg) {
+    // straight
   }
   else {
-    digitalWrite(phaseAPin, LOW);
-  }
 
-  if (speedB < 0) {
-    digitalWrite(phaseBPin, LOW);
-  }
-  else {
-    digitalWrite(phaseBPin, HIGH);
+    // FIXME move to top
+    int16_t const turn = 10;
+    if (state.targetHeadingRel < 0) {
+      speedB = 0;
+    }
+    else if (state.targetHeadingRel > 0) {
+      speedA = 0;
+    }
   }
 
   // set the actual speed

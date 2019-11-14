@@ -6,12 +6,12 @@
 static const int targetDistanceMm = 50;
 
 // spacial resolution isn't that good...
-static const int targetRelHeadingErrorDeg = 20;
+static const int targetRelHeadingErrorDeg = 25;
 
 // below a total of about 120 counts a side wont drive
-static const int motorBaseSpeed = 150;
-static const int motorASpeedTrim = -20;
-static const int motorBSpeedTrim = 100;
+static const int motorBaseSpeed = 120;
+static const int motorASpeedTrim = 10;    //right tread
+static const int motorBSpeedTrim = 80;
 
 enum TrackingState {
   TS_UNKNOWN,
@@ -41,6 +41,33 @@ void nav_Begin(void) {
   pinMode(phaseBPin, OUTPUT);
   pinMode(pwmAPin, OUTPUT);
   pinMode(pwmBPin, OUTPUT);
+
+  // FIXME rm
+  /*
+    state.currentBaseVeloc = motorBaseSpeed;
+  int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
+  int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
+
+  if (speedA < 0) {
+    digitalWrite(phaseAPin, HIGH);
+  }
+  else {
+    digitalWrite(phaseAPin, LOW);
+  }
+
+  if (speedB < 0) {
+    digitalWrite(phaseBPin, LOW);
+  }
+  else {
+    digitalWrite(phaseBPin, HIGH);
+  }
+
+  // set the actual speed
+  analogWrite(pwmAPin, speedA);
+  analogWrite(pwmBPin, speedB);
+
+  while(1) {}
+  */
 }
 
 // clockwise is positive, in degrees
@@ -57,21 +84,22 @@ void nav_SetRange(uint16_t const newRangeMm) {
 }
 
 void nav_NoTarget(void) {
-  state.noTargetCount++;
-  programMotors();
+  //state.noTargetCount++;
+  //programMotors();
 }
 
 // tells us if we are facing directly at the target, and it is within the range
 static bool haveArrivedAtTarget(void) {
-  return state.targetRangeMm <= targetDistanceMm ||
+  return state.targetRangeMm <= targetDistanceMm &&
          abs(state.targetHeadingRel) < targetRelHeadingErrorDeg;
 }
 
 static void programMotors(void) {
-  if (state.noTargetCount > 10) {
+  if (state.noTargetCount > 6 && state.tracState == TS_SEEKING) {
     state.noTargetCount = 0;
     // assume we have lost the target
     state.tracState = TS_NO_TARGET;
+    Serial.println("No target");
   }
 
   // set blue LED for status
@@ -84,15 +112,18 @@ static void programMotors(void) {
   }
 
   // if there is an error to target, navigate
-  if (haveArrivedAtTarget() || state.tracState == TS_NO_TARGET) {
+  if (haveArrivedAtTarget() ) {
     state.tracState = TS_ARRIVED;
-    
+
+    Serial.println("Arrived!\n\n");
+
     analogWrite(pwmAPin, 0);
     analogWrite(pwmBPin, 0);
     return;
   }
   // else, there is navigation to do
   state.tracState = TS_SEEKING;
+  state.noTargetCount = 0;
 
   // adjust base speed based on range
   int rangeDelta = state.targetRangeMm - targetDistanceMm;
@@ -107,13 +138,15 @@ static void programMotors(void) {
   int16_t speedA = state.currentBaseVeloc + motorASpeedTrim;
   int16_t speedB = state.currentBaseVeloc + motorBSpeedTrim;
 
+  // FIXME move to top
+  int16_t const turn = 30;
   if (state.targetHeadingRel < 0) {
-    speedA -= 50;
-    speedB += 50;
+    speedA += turn;
+    speedB -= turn;
   }
   else if (state.targetHeadingRel > 0) {
-    speedA += 50;
-    speedB -= 50;
+    speedA -= turn;
+    speedB += turn;
   }
 
   // set directions. A low, B high, is foreward

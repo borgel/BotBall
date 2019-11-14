@@ -298,6 +298,7 @@ void findClossestTarget(int const * const scanArray, int const scanArrayLen, int
 
   if (maxWithNeighborIndex == -1) {
     // no targets found
+    nav_NoTarget();
     return;
   }
 

@@ -9,6 +9,7 @@ static const int targetDistanceMm = 50;
 static const int targetRelHeadingErrorDeg = 20;
 
 // below a total of about 120 counts a side wont drive
+static const int motorBaseSpeed = 150;
 static const int motorASpeedTrim = -20;
 static const int motorBSpeedTrim = 100;
 
@@ -21,6 +22,7 @@ enum TrackingState {
 
 static struct {
   enum TrackingState tracState;
+  int noTargetCount;
 
   int targetRangeMm;
   int targetHeadingRel;
@@ -54,6 +56,11 @@ void nav_SetRange(uint16_t const newRangeMm) {
   programMotors();
 }
 
+void nav_NoTarget(void) {
+  state.noTargetCount++;
+  programMotors();
+}
+
 // tells us if we are facing directly at the target, and it is within the range
 static bool haveArrivedAtTarget(void) {
   return state.targetRangeMm <= targetDistanceMm ||
@@ -61,6 +68,12 @@ static bool haveArrivedAtTarget(void) {
 }
 
 static void programMotors(void) {
+  if (state.noTargetCount > 10) {
+    state.noTargetCount = 0;
+    // assume we have lost the target
+    state.tracState = TS_NO_TARGET;
+  }
+
   // set blue LED for status
   if (state.tracState == TS_ARRIVED) {
     // done!
@@ -71,8 +84,11 @@ static void programMotors(void) {
   }
 
   // if there is an error to target, navigate
-  if (haveArrivedAtTarget()) {
+  if (haveArrivedAtTarget() || state.tracState == TS_NO_TARGET) {
     state.tracState = TS_ARRIVED;
+    
+    analogWrite(pwmAPin, 0);
+    analogWrite(pwmBPin, 0);
     return;
   }
   // else, there is navigation to do
@@ -82,7 +98,7 @@ static void programMotors(void) {
   int rangeDelta = state.targetRangeMm - targetDistanceMm;
   if (rangeDelta > 0) {
     // TODO make this...proportional
-    state.currentBaseVeloc = 150;
+    state.currentBaseVeloc = motorBaseSpeed;
   }
   else {
     state.currentBaseVeloc = 0;
